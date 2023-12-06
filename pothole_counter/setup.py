@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            "image_colour_filter = pothole_counter.image_colour_filter:main"
         ],
     },
 )

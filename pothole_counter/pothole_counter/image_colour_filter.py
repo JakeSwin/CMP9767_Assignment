@@ -5,8 +5,9 @@ import rclpy
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 import numpy as np
 import cv2
+import image_geometry
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Point
 from cv_bridge import CvBridge
 
@@ -14,6 +15,8 @@ class ImageColourFilter(Node):
     def __init__(self):
         super().__init__("image_colour_filter")
         self.bridge = CvBridge()
+        self.needInfo = True
+        self.camera_model = image_geometry.PinholeCameraModel()
         # Define the Best Effort QOS profile compatible with camera topic
         self.qos_profile = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
@@ -24,6 +27,10 @@ class ImageColourFilter(Node):
                                                   "/limo/depth_camera_link/image_raw",
                                                   self.image_callback,
                                                   qos_profile=self.qos_profile) # Set QoS Profile
+        self.camera_info_sub = self.create_subscription(CameraInfo, 
+                                                  "/limo/depth_camera_link/camera_info",
+                                                  self.info_callback,
+                                                  qos_profile=self.qos_profile)
         self.publisher = self.create_publisher(Image, "/filtered_image", 10)
 
     def image_callback(self, data):
@@ -42,7 +49,18 @@ class ImageColourFilter(Node):
         apply_mask = cv2.bitwise_and(cv_image, cv_image, mask=green_filter)
         apply_mask = cv2.cvtColor(apply_mask, cv2.COLOR_HSV2RGB)
         result = self.bridge.cv2_to_imgmsg(apply_mask, "rgb8")
+        self.camera_model.projectPixelTo3dRay
         self.publisher.publish(result)
+
+    def info_callback(self, data):
+        if self.needInfo:
+            self.get_logger().info("Got Camera Info")
+            self.camera_model.fromCameraInfo(data)
+            self.needInfo = False
+        if self.destroy_subscription(self.camera_info_sub):
+            self.get_logger().info("Sucessfully destroyed camera info sub")
+        else:
+            self.get_logger().info("Failed to destroy camera info sub, will try again")
 
 def main(args=None):
     rclpy.init(args=args)
